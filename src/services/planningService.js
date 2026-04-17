@@ -31,29 +31,19 @@ export function mergeSalesOrders(headerRows, detailRows) {
 
       const planfinish_date = calculatePlanFinishDate(merged);
       const withPlan = { ...merged, planfinish_date };
-      return hydratePlanningRow(withPlan);
+      const planning_status = derivePlanningStatus(withPlan);
+      const timing = deriveTimingMetrics(withPlan);
+
+      return {
+        ...withPlan,
+        customer_req_week: getIsoWeek(withPlan.customer_req_date),
+        plan_week: getIsoWeek(withPlan.planning_req_date || withPlan.planfinish_date || withPlan.customer_req_date),
+        planning_status,
+        can_release: canReleaseToProduction({ ...withPlan, planning_status }),
+        ...timing
+      };
     })
     .filter(Boolean);
-}
-
-export function hydratePlanningRow(row) {
-  const planning_status = derivePlanningStatus(row);
-  const timing = deriveTimingMetrics(row);
-  return {
-    ...row,
-    customer_req_week: getIsoWeek(row.customer_req_date),
-    plan_week: getIsoWeek(row.planning_req_date || row.planfinish_date || row.customer_req_date),
-    planning_status,
-    can_release: canReleaseToProduction({ ...row, planning_status }),
-    ...timing
-  };
-}
-
-export function confirmCustomer(row) {
-  return hydratePlanningRow({
-    ...row,
-    is_customer_confirmed: true
-  });
 }
 
 export function sortOrdersForPlanning(rows) {
@@ -68,9 +58,10 @@ export function filterOrders(rows, criteria) {
   return rows.filter((row) => {
     const byCustomer = criteria.customer ? row.Customer.toLowerCase().includes(criteria.customer.toLowerCase()) : true;
     const byStatus = criteria.status ? row.planning_status === criteria.status : true;
-    const byPlanWeek = criteria.planWeek ? row.plan_week === criteria.planWeek : true;
     const byConfirmed = criteria.confirmedOnly ? row.is_customer_confirmed : true;
-    return byCustomer && byStatus && byPlanWeek && byConfirmed;
+    const byFrom = criteria.fromDate ? row.customer_req_date >= criteria.fromDate : true;
+    const byTo = criteria.toDate ? row.customer_req_date <= criteria.toDate : true;
+    return byCustomer && byStatus && byConfirmed && byFrom && byTo;
   });
 }
 
@@ -104,7 +95,6 @@ export function buildWeeklyPlan({ selectedOrders, planner = 'Planning Team' }) {
     status: PLAN_STATUSES[0],
     lineCount: planningItemCount,
     capacityPass: hasMinimumCapacity(planningItemCount),
-    capacityWarning: planningItemCount < 36,
     releasableCount: planLines.filter((line) => line.can_release).length,
     lines: planLines,
     createdAt: new Date().toISOString()

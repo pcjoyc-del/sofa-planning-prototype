@@ -1,16 +1,9 @@
 import { salesOrderHeader, salesOrderDetails } from './data/sampleSalesOrders.js';
-import {
-  filterOrders,
-  sortOrdersForPlanning,
-  buildWeeklyPlan,
-  releasePlan,
-  mergeSalesOrders,
-  confirmCustomer
-} from './services/planningService.js';
+import { filterOrders, sortOrdersForPlanning, buildWeeklyPlan, releasePlan, mergeSalesOrders } from './services/planningService.js';
 import { renderTabs, renderSalesOrdersPage, renderPlansPage, renderReleasePage, renderAnalysisPage } from './ui/render.js';
 
 const pages = [
-  { key: 'orders', label: '1) Weekly Planning Queue' },
+  { key: 'orders', label: '1) Sales Order Items' },
   { key: 'plans', label: '2) Weekly Plans' },
   { key: 'release', label: '3) Release' },
   { key: 'analysis', label: '4) Delay Analysis' }
@@ -22,8 +15,7 @@ const state = {
   activePage: 'orders',
   rows: mergedRows,
   filteredRows: [],
-  availablePlanWeeks: [],
-  filters: { customer: '', status: '', planWeek: '', confirmedOnly: false },
+  filters: { customer: '', status: '', confirmedOnly: false, fromDate: '', toDate: '' },
   selection: new Set(),
   plans: []
 };
@@ -32,7 +24,6 @@ const appEl = document.getElementById('app');
 const tabsEl = document.getElementById('tabs');
 
 function applyFilters() {
-  state.availablePlanWeeks = [...new Set(state.rows.map((r) => r.plan_week))].sort();
   state.filteredRows = filterOrders(state.rows, state.filters);
 }
 
@@ -60,8 +51,9 @@ function bindOrderEvents() {
   byId('apply-filter').addEventListener('click', () => {
     state.filters.customer = byId('f-customer').value;
     state.filters.status = byId('f-status').value;
-    state.filters.planWeek = byId('f-plan-week').value;
     state.filters.confirmedOnly = byId('f-confirmed-only').checked;
+    state.filters.fromDate = byId('f-from').value;
+    state.filters.toDate = byId('f-to').value;
     applyFilters();
     render();
   });
@@ -74,19 +66,10 @@ function bindOrderEvents() {
     });
   });
 
-  document.querySelectorAll('button[data-confirm-line]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const lineId = btn.dataset.confirmLine;
-      state.rows = state.rows.map((row) => (row.line_id === lineId ? confirmCustomer(row) : row));
-      applyFilters();
-      render();
-    });
-  });
-
   byId('create-plan').addEventListener('click', () => {
     const selected = state.rows.filter((row) => state.selection.has(row.line_id));
     if (!selected.length) {
-      alert('Please select at least 1 planning item line.');
+      alert('Please select at least 1 SO item line.');
       return;
     }
 
@@ -97,7 +80,7 @@ function bindOrderEvents() {
     render();
   });
 
-  byId('import-file')?.addEventListener('change', async (event) => {
+  byId('import-file').addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     try {

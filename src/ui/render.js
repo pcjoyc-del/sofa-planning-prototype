@@ -28,10 +28,6 @@ function summarizeStatus(rows) {
   );
 }
 
-function canShowConfirmButton(row) {
-  return row.planning_status === 'Pending Planning' && !row.is_customer_confirmed && !row.production_date && !row.finish_date;
-}
-
 function renderGroupedStatusTables(state) {
   const statusOrder = ['Pending Planning', 'Confirmed', 'Released', 'Completed'];
 
@@ -42,11 +38,10 @@ function renderGroupedStatusTables(state) {
         <tr class="status-row ${statusClass(o.planning_status)} ${o.is_overdue ? 'overdue-row' : ''}">
           <td><input type="checkbox" data-line-id="${o.line_id}" ${state.selection.has(o.line_id) ? 'checked' : ''}></td>
           <td>${o.SO_No}</td><td>${o.detail_line_no}</td><td>${o.Customer}</td><td>${o.mod_name}</td><td>${o.qty}</td>
-          <td>${o.plan_week}</td><td>${o.planfinish_date}</td>
+          <td>${o.customer_req_week}</td><td>${o.plan_week}</td><td>${o.planfinish_date}</td>
           <td>${o.is_customer_confirmed ? 'Yes' : 'No'}</td>
           <td>${o.can_release ? 'Ready to Release' : 'Not Ready'}</td>
           <td>${renderTimingIndicator(o)}</td>
-          <td>${canShowConfirmButton(o) ? `<button class="tiny" data-confirm-line="${o.line_id}">Confirm Customer</button>` : '-'}</td>
         </tr>
       `).join('');
 
@@ -58,7 +53,7 @@ function renderGroupedStatusTables(state) {
               <thead>
                 <tr>
                   <th>Select</th><th>SO_No</th><th>Line#</th><th>Customer</th><th>Model</th><th>Qty</th>
-                  <th>Plan Week</th><th>Plan Finish</th><th>Cust Confirmed</th><th>Release Readiness</th><th>Timing Risk</th><th>Action</th>
+                  <th>Customer Req Week</th><th>Plan Week</th><th>Plan Finish</th><th>Cust Confirmed</th><th>Release Readiness</th><th>Timing Risk</th>
                 </tr>
               </thead>
               <tbody>${rows || '<tr><td colspan="12" class="muted">No items in this status</td></tr>'}</tbody>
@@ -84,25 +79,25 @@ export function renderSalesOrdersPage(state) {
   const statusSummary = summarizeStatus(state.filteredRows);
 
   return [
-    createCard('Weekly Planner Queue (Business Workflow)', `
+    createCard('Planner Workflow View (Status-first)', `
       <ul class="compact">
-        <li><strong>Pending Planning</strong>: not customer-confirmed yet and not released.</li>
-        <li><strong>Confirmed</strong>: customer-confirmed and ready for weekly plan/release.</li>
-        <li><strong>Released</strong>: already sent to production.</li>
-        <li><strong>Completed</strong>: already finished.</li>
+        <li><strong>Pending Planning</strong>: ต้องติดตาม customer confirmation.</li>
+        <li><strong>Confirmed</strong>: พร้อมเข้ารอบ release.</li>
+        <li><strong>Released</strong>: ปล่อยไปฝ่ายผลิตแล้ว.</li>
+        <li><strong>Completed</strong>: ผลิตเสร็จแล้ว ใช้ดูผลเทียบแผน.</li>
       </ul>
-      <p class="muted">Mock JSON import only for prototype. Real Excel import from Vector is future scope.</p>
+      <p class="muted">Import ในหน้านี้เป็น mock/prototype only. Excel import จาก Vector เป็น future scope.</p>
     `),
-    createCard('Weekly Queue Summary', `
+    createCard('Planning Queue Summary', `
       <div class="grid-2">
         <div><span class="badge Pending-Planning">Pending Planning</span> ${statusSummary['Pending Planning']}</div>
         <div><span class="badge Confirmed">Confirmed</span> ${statusSummary.Confirmed}</div>
         <div><span class="badge Released">Released</span> ${statusSummary.Released}</div>
         <div><span class="badge Completed">Completed</span> ${statusSummary.Completed}</div>
       </div>
-      <p><span class="pill overdue">Overdue items this queue: ${statusSummary.overdue}</span></p>
+      <p><span class="pill overdue">Overdue items: ${statusSummary.overdue}</span></p>
     `),
-    createCard('Weekly Filters & Planning Action', `
+    createCard('Filters & Weekly Plan Actions', `
       <div class="filters">
         <input id="f-customer" placeholder="Customer contains" value="${state.filters.customer}">
         <select id="f-status">
@@ -112,19 +107,17 @@ export function renderSalesOrdersPage(state) {
           <option ${state.filters.status === 'Released' ? 'selected' : ''}>Released</option>
           <option ${state.filters.status === 'Completed' ? 'selected' : ''}>Completed</option>
         </select>
-        <select id="f-plan-week">
-          <option value="">All plan weeks</option>
-          ${state.availablePlanWeeks.map((w) => `<option ${state.filters.planWeek === w ? 'selected' : ''}>${w}</option>`).join('')}
-        </select>
         <label><input type="checkbox" id="f-confirmed-only" ${state.filters.confirmedOnly ? 'checked' : ''}> confirmed only</label>
+        <input type="date" id="f-from" value="${state.filters.fromDate}">
+        <input type="date" id="f-to" value="${state.filters.toDate}">
         <button id="apply-filter">Apply</button>
-        <label class="muted">Mock Import <input type="file" id="import-file" accept="application/json"></label>
+        <input type="file" id="import-file" accept="application/json">
       </div>
       <div class="actions">
-        <button class="primary" id="create-plan">Create Weekly Plan from Selected Items (${state.selection.size})</button>
+        <button class="primary" id="create-plan">Create Weekly Production Plan (${state.selection.size} selected)</button>
       </div>
     `),
-    createCard('Grouped Planning Items by Status', renderGroupedStatusTables(state))
+    createCard('Grouped Items by Planning Status', renderGroupedStatusTables(state))
   ].join('');
 }
 
@@ -133,22 +126,17 @@ export function renderPlansPage(state) {
     <tr>
       <td>${p.planId}</td><td>${p.week}</td><td>${p.lineCount}</td>
       <td>${p.releasableCount}</td>
-      <td>${p.capacityPass ? 'Pass' : '<span class="pill late">Below target 36 (warning only)</span>'}</td>
+      <td>${p.capacityPass ? 'Pass' : 'Below min(36)'}</td>
       <td><span class="badge ${statusClass(p.status)}">${p.status}</span></td>
       <td>${new Date(p.createdAt).toLocaleString()}</td>
     </tr>
   `).join('');
 
-  const latest = state.plans[state.plans.length - 1];
-  const warning = latest?.capacityWarning
-    ? '<p><span class="pill late">Capacity warning: selected items are below weekly target 36, but plan is still created.</span></p>'
-    : '';
-
-  return createCard('Weekly Production Plans (capacity warning does not block)', `
-      ${warning}
+  return createCard('Weekly Production Plans (using plan_week)', `
+      <p class="muted">This page summarizes weekly planning batches created from selected planning items.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Plan ID</th><th>Plan Week</th><th>Items</th><th>Releasable Items</th><th>Capacity Check</th><th>Status</th><th>Created</th></tr></thead>
+          <thead><tr><th>Plan ID</th><th>Plan Week</th><th>Items</th><th>Releasable Items</th><th>Capacity Rule</th><th>Status</th><th>Created</th></tr></thead>
           <tbody>${plans || '<tr><td colspan="7" class="muted">No plans yet</td></tr>'}</tbody>
         </table>
       </div>
@@ -158,7 +146,7 @@ export function renderPlansPage(state) {
 export function renderReleasePage(state) {
   const latest = state.plans[state.plans.length - 1];
   if (!latest) {
-    return createCard('Release Plan → Production Orders', '<p class="muted">Create a weekly plan first from Weekly Planning Queue page.</p>');
+    return createCard('Release Plan → Production Orders', '<p class="muted">Create a plan first from Sales Order Items page.</p>');
   }
 
   const poRows = (latest.productionOrders || []).map((po) => `
@@ -169,7 +157,7 @@ export function renderReleasePage(state) {
     ? `<p>Release result: released ${latest.releaseSummary.released}/${latest.releaseSummary.totalSelected}, blocked not releasable ${latest.releaseSummary.blockedNotReleasable}</p>`
     : '<p>Only item lines allowed by canReleaseToProduction(row) can be released.</p>';
 
-  return createCard('Weekly Release Control for Planners', `
+  return createCard('Release Control for Planners', `
     <p>Latest plan: <strong>${latest.planId}</strong> | Plan Week ${latest.week} | Status <span class="badge ${statusClass(latest.status)}">${latest.status}</span></p>
     ${summary}
     <div class="actions">

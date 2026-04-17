@@ -146,12 +146,3 @@ ul.compact { margin: 4px 0 0; padding-left: 18px; }
   outline: 2px solid #fecaca;
   outline-offset: -2px;
 }
-
-
-button.tiny {
-  font-size: 0.75rem;
-  padding: 4px 8px;
-  background: #fff;
-  border-color: #9ca3af;
-  cursor: pointer;
-}
