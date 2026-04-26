@@ -42,3 +42,30 @@ Prototype web app (no backend) to validate **Production Planning** requirements 
 - `SalesOrderDetails` (includes mock `detail_line_no`)
 - `MergedPlanningRow` (derived in service layer)
   - includes `planning_status`, `can_release`, `customer_req_week`, `plan_week`, `is_late`, `is_overdue`
+
+---
+
+## Mini CRM Prisma quickstart (baseline draft)
+
+### Environment variables
+
+Set in `.env` (or deployment env):
+
+```bash
+DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<db>?schema=public"
+```
+
+### Prisma commands
+
+```bash
+# Generate Prisma Client
+npx prisma generate
+
+# Apply migrations in local/dev
+npx prisma migrate dev
+
+# Seed baseline showroom data
+npx prisma db seed
+```
+
+> Migration risk note: enum wording (`LeadStatus`, `IdentityStatus`, `LeadSource`) is marked as canonical v1 in schema, but should still be PO-confirmed before production lock.
